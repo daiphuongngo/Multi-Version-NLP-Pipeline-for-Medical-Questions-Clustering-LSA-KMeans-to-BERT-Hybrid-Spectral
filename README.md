@@ -1,5 +1,9 @@
 # Multi-Version-NLP-Pipeline-for-Medical-Questions-Clustering-LSA-KMeans-to-BERT-Hybrid-Spectral
 
+![Harvard_University_logo svg](https://github.com/user-attachments/assets/cf1e57fb-fe56-4e09-9a8b-eb8a87343825)
+
+![Harvard-Extension-School](https://github.com/user-attachments/assets/59ea7d94-ead9-47c0-b29f-f29b14edc1e0)
+
 ## **Master of Liberal Arts (ALM), Data Science**
 
 ## **CSCI E-108 Data Mining, Discovery and Exploration**
