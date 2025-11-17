@@ -30,7 +30,7 @@ Once I added stricter preprocessing (POS-based noun/proper-noun filtering) and m
 
 > v2.1-v2.3 (BERT + Tags + OPTICS)
 
-In v2.x I switched to a joint representation: Sentence-Transformer embeddings for short_question_pos plus SVD-compressed tag vectors. OPTICS with a cosine metric discovered very dense, clinically coherent micro-topics (for example, shingles, hepatitis, thyroid), but labeled only a small fraction of the dataset and treated the rest as noise. v2.3 is the most polished of these density-based runs: 4 extremely tight clusters, 46,650/47,491 points as noise, very strong internal metrics on the labeled subset, but not operationally convenient.
+In v2.x I switched to a joint representation: Sentence-Transformer embeddings for short_question_pos plus SVD-compressed tag vectors. OPTICS with a cosine metric discovered very dense, clinically coherent micro-topics (for example, shingles, hepatitis, thyroid), but labeled only a small fraction of the dataset and treated the rest as noise. v2.3 is the most polished of these density-based runs: 4 extremely tight clusters, 46,650/47,491 points as noise, very strong internal metrics on the labeled subset but not operationally convenient.
 
 > v2.4 (BERT + Tags → Nyström Spectral + KMeans)
 
