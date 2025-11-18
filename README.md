@@ -22,7 +22,7 @@ I ran eight clustering variants on the same inputs:
 
 > v1.1-v1.2 (TF-IDF + LSA + KMeans)
 
-Early baselines using bag-of-words and tags. These runs already produced a recognizable medical taxonomy, such as pregnancy, skin, dental, mental health, etc.—but they also suffered from one or two "mega-clusters" mixing general pain/symptom questions.
+Early baselines using bag-of-words and tags. These runs already produced a recognizable medical taxonomy, such as pregnancy, skin, dental, mental health, etc. But they also suffered from one or two "mega-clusters" mixing general pain/symptom questions.
 
 > v1.3-v1.4 (TF-IDF + LSA + Spectral Clustering)
 
