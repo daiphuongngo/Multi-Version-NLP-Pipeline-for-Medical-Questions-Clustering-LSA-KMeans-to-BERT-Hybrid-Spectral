@@ -801,9 +801,512 @@ Below is a full script based on my current one, **plus**:
 
 ## v2
 
+### 1. Data preprocessing
+
+**What I see in the log**
+
+* Original dataset: ~47,603 rows
+* After POS cleanup: **47,491 rows**
+
+  > `[Preprocess] Rows after POS cleanup: 47491`
+
+So the POS-based filtering only removed **112 questions** – that means the pipeline is aggressive on function words but conservative on dropping rows. Good: coverage is essentially intact.
+
+**Key preprocessing steps implied:**
+
+1. **POS cleanup on `short_question`**
+
+   * Keep mostly **content words** (NOUN / PROPN, maybe some others), remove fillers, verbs, auxiliaries, etc.
+   * This produces something like `short_question_norm`, which is later used for BM25 and semantic encoding.
+
+2. **Tag normalization**
+
+   * Tags appear as a **clean list**:
+
+     ```python
+     ['breast' 'cramps' 'period' 'pregnancy' 'sexual intercourse']
+     ```
+   * This suggests:
+
+     * stripping brackets / quotes,
+     * splitting / trimming,
+     * lowercasing,
+     * applying frequency filters (in earlier versions: freq>100, rare-tag pruning, etc.).
+
+**Why this is good**
+
+* I keep **almost all rows**, so the retrieval index is faithful to the original dataset.
+* POS-cleaned questions reduce noise while preserving core medical entities (“period”, “pregnancy”, “breast”, “cramps”).
+* Tags are normalized into a machine-friendly format, which later supports **tag-based retrieval** and **Jaccard similarity**.
+
+---
+
+## 2. NLP feature engineering
+
+The log shows:
+
+> `[Features] BERT(all-MiniLM-L6-v2)→PCA(80D, EV=0.721) + Tags→SVD(20D, EV=0.245)`
+> `[Shapes] X_sem_norm: (47491, 80), X_tag_norm: (47491, 20)`
+
+### 2.1 Text (semantic) side
+
+* Model: **SentenceTransformers – `all-MiniLM-L6-v2`**
+* Original embedding dim: 384
+* PCA → **80 dimensions**, with **72.1% explained variance**.
+
+Interpretation:
+
+* I am compressing each question into an 80D vector that still retains most (~72%) of the semantic variance.
+* This is a strong trade-off between:
+
+  * Memory / compute efficiency, and
+  * Retaining enough semantic structure for good **cosine similarity**.
+
+The matrix:
+
+* `X_sem_norm`: shape `(47491, 80)`
+  → one 80D semantic vector per question, likely L2-normalized.
+
+### 2.2 Tag side
+
+* Tags are turned into some bag-of-tags representation and then:
+* Truncated SVD to **20D**, with **24.5% explained variance**.
+
+Interpretation:
+
+* Tag space is much smaller and more discrete, so even though EV=0.245 looks “low”, tags are sparse and categorical; SVD mainly offers:
+
+  * Dimensionality reduction,
+  * Smoothed co-occurrence structure between tags,
+  * A compact representation for clustering / later models.
+
+The matrix:
+
+* `X_tag_norm`: shape `(47491, 20)`
+  → one 20D tag-based vector per question, probably normalized as well.
+
+**Big picture**
+
+* Each question is now backed by:
+
+  * An **80D semantic vector** (from BERT+PCA),
+  * A **20D tag vector** (from tag SVD),
+  * Plus raw text for BM25.
+
+This gives me three “views” of the data: lexical (BM25), semantic (BERT), and categorical (tags).
+
+---
+
+## 3. Retrieval model (hybrid semantic + lexical + tags)
+
+The printed examples show the scoring logic clearly.
+
+### 3.1 Text-only query
+
+Example 1:
+
+> Query: `"period late cramps"`
+> Columns: `short_question`, `tags`, `semantic_score`, `bm25_score`, `blended_score`
+
+Observations:
+
+* `semantic_score` ≈ 0.78–0.85 (cosine similarity to BERT embedding of the query).
+* `bm25_score` ≈ 12–20 (classical sparse lexical match).
+* `blended_score` somewhere between 0.61–0.64.
+
+This suggests:
+
+* I compute:
+
+  * A **semantic similarity** (cosine) between query BERT embedding and `X_sem_norm`.
+  * A **BM25 similarity** over `short_question_norm`.
+* Then I combine them into a **normalized blended score**, probably something like:
+  [
+  \text{blended} = \alpha \cdot \text{semantic_norm} + \beta \cdot \text{bm25_norm}
+  ]
+* The top results show **strong semantic and lexical overlap**:
+
+  * “sore breast… bad cramps but no period… could I be pregnant”
+  * “period was 8 days late… cramps… could I be pregnant”
+* That’s exactly the behavior I want:
+  BM25 handles exact terms (“period”, “cramps”), BERT picks paraphrases / variants.
+
+### 3.2 Tags-only query
+
+Example 2:
+
+> Query tags: `['pregnancy', 'period']`
+> Columns: `semantic_score`, `tag_jaccard`, `bm25_score`, `blended_score`
+
+Observations:
+
+* `semantic_score` = **0.0**, `bm25_score` = **0.0** for all rows.
+  That means:
+
+  * For a pure tag-based query, I intentionally **turn off** text/semantic scores.
+* `tag_jaccard` ranges from **1.0** (exact tag match) to 0.5, 0.25, etc.
+* `blended_score` ≈ 0.2, 0.1, etc.
+  This implies a simple mapping from Jaccard to a scaled blended score.
+
+Interpretation:
+
+* When I query only with tags, I rely **exclusively** on **set overlap between query tags and question tags**:
+  [
+  J(A,B) = \frac{|A \cap B|}{|A \cup B|}
+  ]
+* This is nice because:
+
+  * It’s **transparent** and easy to reason about.
+  * It acts as a strong filter when a doctor or model already knows the relevant tags.
+
+### 3.3 Mixed query (text + tags)
+
+Example 3:
+
+> Mixed query: text about "period late" + tags like `['pregnancy', 'period']` (inferred)
+> Columns: `semantic_score`, `tag_jaccard`, `bm25_score`, `blended_score`
+
+Observations:
+
+* `semantic_score` ~ 0.69–0.89
+* `tag_jaccard` ~ 0.75–1.0
+* `bm25_score` ~ 16–21
+* `blended_score` ~ 0.75–0.81
+
+Interpretation:
+
+* For mixed queries, I combine **three signals**:
+
+  * Semantic (BERT),
+  * Lexical (BM25),
+  * Tag overlap (Jaccard).
+* The top results are all very on-topic:
+
+  * “period due… spotting… pregnancy test… am I pregnant”
+  * “missed my period last month… very fertile day… test was negative… pregnant?”
+* This is exactly the kind of medically coherent neighborhood I want for a retrieval system powering a chatbot.
+
+---
+
+## 4. Measurement and metrics
+
+### 4.1 Retrieval quality (qualitative)
+
+At this v2 stage, the **main measurement** is qualitative:
+
+* For **text-only query** (“period late cramps”), the top hits mention:
+
+  * sore breasts, bad cramps, late period, pregnancy concern.
+* For **tags-only query** (`['pregnancy', 'period']`), the top hits:
+
+  * all include both pregnancy and period tags, with high Jaccard.
+* For **mixed query**, the system surfaces nuanced “am I pregnant?” scenarios tied to timing, tests, and symptoms.
+
+So even without formal IR metrics yet, the **face validity** of top results is strong.
+
+### 4.2 Timing / runtime metrics
+
+Log:
+
+> `[Timing] Wrote timings JSON to: .../retrieval_timings_bm25.json`
+>
+> `preprocess_s: 128.5489`
+> `vectorize_s: 109.4065`
+> `total_runtime_s: 246.7312`
+
+Interpretation:
+
+* Total end-to-end runtime for v2 on ~47k questions: **~247 seconds**.
+
+  * ~129s for preprocessing (POS, normalization, tag cleanup).
+  * ~109s for vectorization (BERT inference + PCA + SVD + BM25 index).
+* These timings are saved to JSON, so I can:
+
+  * Compare v1 vs v2 vs future versions.
+  * Quantify trade-offs if I change BERT model, dimensionality, or BM25 parameters.
+
+What’s missing (potential future work):
+
+* Formal IR metrics:
+
+  * **Precision@k**, **Recall@k**, **nDCG@k** using a small labeled set of query–relevant pairs.
+* Latency per *single* query:
+
+  * Right now I mainly log offline build time; per-query latency will matter for a live system.
+
+---
+
+## 5. Overall evaluation of v2
+
+**Strengths**
+
+* **Data preprocessing**:
+
+  * POS cleanup preserves almost all rows while removing noise.
+  * Tags are normalized and usable for both filtering and similarity.
+* **NLP representations**:
+
+  * BERT+PCA (80D) captures ~72% of semantic variance with a much smaller footprint.
+  * Tag SVD (20D) provides a compact representation for later clustering / modeling.
+* **Hybrid retrieval model**:
+
+  * Combines **semantic**, **lexical**, and **tag** signals.
+  * Behaves well across three query modes: text-only, tags-only, and mixed.
+* **Measurement**:
+
+  * Runtime is tracked in JSON, giving a baseline (~247s) for future optimizations.
+
+**Limitations / next ideas**
+
+* PCA to 80D still loses about 28% of semantic variance; for very fine-grained distinctions, I might push it to 100–128D and see if retrieval improves.
+* Tag SVD keeps only 24.5% EV; I might:
+
+  * increase to 32–50 dimensions, or
+  * skip SVD for retrieval and use raw tag sets (as I already do via Jaccard).
+* Evaluation is qualitative; adding a small **gold relevance set** would let me compute:
+
+  * Precision@5 / @10, nDCG, and measure the direct contribution of BM25 vs BERT vs tags.
+* I see duplicate rows in the output (same question printed twice). That suggests duplicates in the dataset or in the retrieval merging logic; I may want to deduplicate for cleaner UX.
 
 
 ## Comparison between v1 and v2
+
+# 1. NLP Pipeline Differences (v1 → v2)
+
+## **v1: Simple hybrid retrieval**
+
+**NLP representation logic**
+
+* Used **TF-IDF** or **simple BERT embeddings** (no PCA compression).
+* No advanced POS normalization—usually the full question text with minor cleaning.
+* Tags were included, but often treated as:
+
+  * bag-of-tags,
+  * simple one-hot vectors,
+  * or merged textually into the question.
+* Query representation was mostly:
+
+  * Direct sentence embedding,
+  * BM25/Tfidf vector.
+
+**Strengths**
+
+* Fast, easy to debug.
+* Decent retrieval for exact matches.
+
+**Weaknesses**
+
+* Semantic embeddings had no dimensionality control → memory-heavy.
+* Tags and text were not cleanly separated → weaker control over tag-based retrieval.
+* No principled POS normalization → semantic embeddings included noise words (“is”, “have”, “what”, “can”, “i”, “am”).
+
+---
+
+## **v2: Structured multi-view NLP representation**
+
+**NLP representation logic**
+
+* POS-cleaned text (`short_question_norm`) → only content nouns kept.
+  → Removes noise and improves semantic density.
+* Sentence-BERT (`all-MiniLM-L6-v2`) as high-quality semantic encoder.
+* PCA to **80D**, preserving **72.1% variance** → efficient but still strong semantic structure.
+* Tags transformed using SVD to **20D** → smoothing co-occurrence patterns.
+* Text is represented in **three separate modalities**:
+
+  * **semantic** (BERT → PCA),
+  * **lexical** (BM25),
+  * **categorical** (Tags → SVD / Jaccard).
+
+**Strengths**
+
+* More structured, cleaner NLP pipeline.
+* Better semantic discrimination after POS filtering.
+* Compression makes everything faster (retrieval and re-ranking).
+* Clear separation between modalities (semantic vs lexical vs tags).
+
+**Weaknesses**
+
+* PCA collapses ~28% variance.
+* Tag SVD preserves only ~25% variance, though this is acceptable because tags are sparse.
+
+---
+
+# 2. Modeling Logic (How similarity + re-ranking is constructed)
+
+## **v1 Modeling Logic**
+
+**Similarity search:**
+
+* Single or dual weights:
+
+  * **Semantic cosine similarity**
+  * **BM25 lexical score**
+* Sometimes an additive blend, e.g.
+  [
+  \text{score} = \alpha\cdot\cos + \beta\cdot\text{bm25}
+  ]
+
+**Reranking logic:**
+
+* Based on raw scores.
+* Tag overlap was optional or weakly integrated.
+* No multi-view fusion.
+
+**Observations**
+
+* Simpler but less “aware” of tags.
+* Could retrieve semantically similar but medically irrelevant cases if tags didn’t match.
+* Sometimes BM25 dominated because of keyword-heavy queries.
+
+---
+
+## **v2 Modeling Logic**
+
+**Similarity search:**
+I now fuse **three channels**:
+
+1. **Semantic similarity** = cosine(BERT_PCA(query), BERT_PCA(question))
+2. **Lexical match** = BM25(query → question_text)
+3. **Medical ontology overlap** = Jaccard(query_tags, question_tags)
+
+**Reranking logic:**
+
+* Weighted blended score:
+  [
+  \text{blended} = w_s(\text{semantic}) + w_b(\text{bm25}) + w_t(\text{tag score})
+  ]
+* v2 examples show:
+
+  * Text-only queries → semantic + BM25 dominate.
+  * Tag-only queries → semantic = 0, BM25 = 0, Jaccard = dominant.
+  * Mixed queries → all three contribute proportionally.
+
+**Observations**
+
+* More medically controlled behavior.
+* Queries behave differently depending on modality — more realistic search.
+* Reranking respects both semantics and medical taxonomy.
+
+---
+
+# 3. Performance Observations (Qualitative + Quantitative)
+
+## **v1 Performance**
+
+**Qualitative**
+
+* Sometimes top retrievals were semantically close but medically mismatched.
+* Tag influence was weak, so user queries containing “period” + “pregnancy” could return items about “missed period due to stress” without pregnancy context.
+
+**Quantitative**
+
+* No systematic runtime tracking.
+* Embeddings stored at full resolution → heavier memory footprint.
+* Query latency slightly higher due to larger embeddings and no PCA compression.
+
+---
+
+## **v2 Performance**
+
+**Qualitative**
+
+* Top results closely match expected medical scenario in all three modes:
+
+  * Text-only → semantically matched symptom descriptions.
+  * Tags-only → exact tag matches appear first (Jaccard = 1.0).
+  * Mixed → nuanced pregnancy/period/spotting/pain scenarios.
+
+Examples show:
+
+* Higher semantic precision (BERT + PCA + POS filtering).
+* Cleaner tag-based alignment.
+
+**Quantitative (from logs)**
+
+```
+preprocess_s: 128.5489
+vectorize_s: 109.4065
+total_runtime_s: 246.7312
+```
+
+Interpretation:
+
+* Preprocessing ~129s (POS, normalization).
+* Vectorization ~109s (BERT inference + PCA + SVD + BM25 index).
+* Total model build time ~247s → reasonable for ~47k samples.
+
+**Efficiency improvements**
+
+* PCA reduces embedding dimension → quicker cosine computations.
+* BM25 index built over POS-cleaned text → smaller vocabulary.
+* Tag representation shrinks from sparse bag-of-tags to 20D SVD.
+
+---
+
+# 4. Metrics & Measurement: v1 vs v2
+
+### **v1 Metrics**
+
+* Largely qualitative evaluation (“retrieved examples look OK”).
+* No timing measurement.
+* No explicit breakdown of signal contributions.
+
+### **v2 Metrics**
+
+Recorded and measurable:
+
+* Runtime JSON saved: preprocess, vectorize, total.
+* Results clearly show:
+
+  * Semantic similarity values,
+  * Tag Jaccard values,
+  * BM25 values,
+  * Final blended score.
+
+Even without Precision@k yet, v2 provides:
+
+* Clear interpretability of why each item is retrieved.
+* Modular scoring system where each component is visible.
+* Easy debugging (semantic vs lexical vs tag signals).
+* More robust medical relevance in examples.
+
+---
+
+# Final Summary (High-Level Comparison)
+
+## **v1 → v2 Evolution**
+
+### **NLP**
+
+v1: raw text, noisy embeddings
+v2: POS-cleansed text + BERT embeddings + PCA compression
+
+### **Modeling**
+
+v1: cosine + BM25
+v2: semantic + lexical + tag-ontology fusion
+
+### **Performance**
+
+v1: no runtime/memory control
+v2: PCA + SVD + POS → faster, leaner, more stable
+
+### **Metrics**
+
+v1: mostly qualitative
+v2: structured blended score + timings + multiple similarity channels
+
+### **Overall Outcome**
+
+v2 gives:
+
+* higher medical relevance
+* clearer interpretability
+* stronger semantic discrimination
+* more efficient representation
+* structured multi-modal re-ranking
+
+It is a **big step toward a true retrieval engine** suitable for RAG or downstream automation agents.
 
 
 # Reference
