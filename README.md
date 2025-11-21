@@ -1379,46 +1379,149 @@ In my head, v1 is “dense BERT + tags as a clean, mathematically elegant simila
 
 
 
-# Reference
+# **Reference List for Clustering, NLP, EDA, Topic Modelling, and Retrieval**
 
-[1] Scikit-learn Developers, "KMeans clustering," *scikit-learn documentation*, 2024. [Online]. Available: [https://scikit-learn.org/stable/modules/clustering.html#k-means](https://scikit-learn.org/stable/modules/clustering.html#k-means)
+### **Core NLP Preprocessing and POS Filtering**
 
-[2] Scikit-learn Developers, "Truncated SVD (LSA)," *scikit-learn documentation*, 2024. [Online]. Available:
-[https://scikit-learn.org/stable/modules/decomposition.html#lsa](https://scikit-learn.org/stable/modules/decomposition.html#lsa)
+1. Honnibal, M., Montani, I., Van Landeghem, S., & Boyd, A. *spaCy 3: Industrial-Strength Natural Language Processing in Python* (2021).
+   [https://spacy.io/](https://spacy.io/)
+2. spaCy Documentation - Tokenization, Lemmatization, POS Tagging.
+   [https://spacy.io/usage/linguistic-features](https://spacy.io/usage/linguistic-features)
+3. Bird, S., Klein, E., & Loper, E. *Natural Language Processing with Python*. O’Reilly Media (2009).
+   [https://www.nltk.org/book/](https://www.nltk.org/book/)
 
-[3] Scikit-learn Developers, "OPTICS clustering," *scikit-learn documentation*, 2024. [Online]. Available:
-[https://scikit-learn.org/stable/modules/clustering.html#optics](https://scikit-learn.org/stable/modules/clustering.html#optics)
+---
 
-[4] HDBSCAN Authors, "HDBSCAN: Hierarchical density-based clustering," *Official Documentation*, 2024. [Online]. Available:
-[https://hdbscan.readthedocs.io/](https://hdbscan.readthedocs.io/)
+# **TF-IDF, Dimensionality Reduction (LSA/SVD/PCA), and Classical Clustering**
 
-[5] UMAP-learn Developers, "UMAP: Uniform Manifold Approximation and Projection," *Official Documentation*, 2024. [Online]. Available:
-[https://umap-learn.readthedocs.io/](https://umap-learn.readthedocs.io/)
+4. Manning, C., Raghavan, P., & Schütze, H. *Introduction to Information Retrieval*. Cambridge University Press (2008). (TF-IDF, cosine similarity, sparse vectors)
+   [https://nlp.stanford.edu/IR-book/](https://nlp.stanford.edu/IR-book/)
+5. Deerwester, S. et al. *Indexing by Latent Semantic Analysis*. JASIS (1990).
+6. Pedregosa, F. et al. *Scikit-learn: Machine Learning in Python*. JMLR (2011). (KMeans, MiniBatchKMeans, PCA, TruncatedSVD)
+   [https://scikit-learn.org/stable/](https://scikit-learn.org/stable/)
 
-[6] Explosion AI, "spaCy: Industrial-strength NLP," *spaCy Documentation*, 2024. [Online]. Available:
-[https://spacy.io/](https://spacy.io/)
+---
 
-[7] HuggingFace, "Sentence Transformers - all-MiniLM-L6-v2 model card," *HuggingFace Model Hub*, 2024. [Online]. Available:
-[https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2)
+# **UMAP & HDBSCAN (used heavily in v2.x and EDA visualization)**
 
-[8] HuggingFace, "BERT base uncased model card," *HuggingFace Model Hub*, 2024. [Online]. Available:
-[https://huggingface.co/bert-base-uncased](https://huggingface.co/bert-base-uncased)
+7. McInnes, L., Healy, J., & Melville, J. *UMAP: Uniform Manifold Approximation and Projection for Dimension Reduction*. arXiv:1802.03426 (2018).
+   [https://umap-learn.readthedocs.io/](https://umap-learn.readthedocs.io/)
+8. Campello, R. J. G. B., Moulavi, D., Sander, J. *Advances in Density-Based Clustering: HDBSCAN*. J. Intell. Inf. Syst. (2015).
+   [https://hdbscan.readthedocs.io/](https://hdbscan.readthedocs.io/)
+9. McInnes, L. *UMAP + HDBSCAN Examples*.
+   [https://umap-learn.readthedocs.io/en/latest/clustering.html](https://umap-learn.readthedocs.io/en/latest/clustering.html)
 
-[9] M. Grootendorst, "BERTopic: Neural Topic Modeling with class-based TF-IDF," *BERTopic Documentation*, 2024. [Online]. Available:
-[https://maartengr.github.io/BERTopic/](https://maartengr.github.io/BERTopic/)
+---
 
-[10] FAISS Team (Meta AI), "FAISS: Facebook AI Similarity Search," *GitHub Repository*, 2024. [Online]. Available:
-[https://github.com/facebookresearch/faiss](https://github.com/facebookresearch/faiss)
+# **OPTICS (Versions v2.1-v2.3)**
 
-[11] nltk.org, "Punkt Tokenizer Models," NLTK Documentation, 2024. [Online]. Available:
-[https://www.nltk.org/](https://www.nltk.org/)
+10. Ankerst, M. et al. *OPTICS: Ordering Points To Identify the Clustering Structure*. SIGMOD (1999).
+11. Scikit-learn OPTICS Documentation.
+    [https://scikit-learn.org/stable/modules/generated/sklearn.cluster.OPTICS.html](https://scikit-learn.org/stable/modules/generated/sklearn.cluster.OPTICS.html)
 
-[12] StackOverflow Community, "Techniques for TF-IDF, vectorization, and clustering in Python," *StackOverflow Discussions*, accessed 2024. [Online]. Available:
-[https://stackoverflow.com/](https://stackoverflow.com/)
+---
+
+# **Spectral Clustering + Nyström Approximation (v2.4)**
+
+12. Ng, A. Y., Jordan, M. I., Weiss, Y. *On Spectral Clustering: Analysis and an Algorithm*. NIPS (2001).
+13. Drineas, P., Mahoney, M. *Nyström Methods and Their Use in Large-Scale Machine Learning* (2016).
+14. Scikit-Learn SpectralEmbedding.
+    [https://scikit-learn.org/stable/modules/generated/sklearn.manifold.SpectralEmbedding.html](https://scikit-learn.org/stable/modules/generated/sklearn.manifold.SpectralEmbedding.html)
+
+---
+
+# **Sentence Embeddings & Transformer Models (v2.x feature stack)**
+
+15. Reimers, N., & Gurevych, I. *Sentence-BERT: Sentence Embeddings Using Siamese BERT-Networks*. EMNLP (2019).
+    [https://www.sbert.net/](https://www.sbert.net/) ([SentenceTransformers][1])
+16. HuggingFace Transformers Documentation.
+    [https://huggingface.co/docs/transformers/index](https://huggingface.co/docs/transformers/index)
+
+---
+
+# **BERTopic (v5 in my proposal; also inspires UMAP/HDBSCAN setup)**
+
+17. Grootendorst, M. *BERTopic: Neural Topic Modeling with Transformers*.
+    [https://maartengr.github.io/BERTopic/](https://maartengr.github.io/BERTopic/)
+18. BERTopic GitHub Repository.
+    [https://github.com/MaartenGr/BERTopic](https://github.com/MaartenGr/BERTopic)
+
+---
+
+# **Vector Search, Similarity Search, Retrieval, and Reranking (v1 & v2-style hybrid stack)**
+
+19. Johnson, J., Douze, M., Jégou, H. *Billion-scale Similarity Search with GPUs - FAISS Library*. Facebook AI Research (2017).
+    [https://github.com/facebookresearch/faiss](https://github.com/facebookresearch/faiss) ([DZone][2])
+
+20. Karpukhin, V. et al. *Dense Passage Retrieval for Open-Domain Question Answering*. EMNLP (2020).
+    (Dense bi-encoder retrieval that underpins many BERT-based semantic search systems.) ([Medium][3])
+
+21. Khattab, O., & Zaharia, M. *ColBERT: Efficient and Effective Passage Search via Contextualized Late Interaction over BERT*. SIGIR (2020).
+    (Late-interaction architecture for high-quality dense retrieval and reranking.) ([Emergent Mind][4])
+
+22. SentenceTransformers Documentation - *Semantic Search and Cross-Encoder Reranking*.
+    (Practical recipes for dual-encoder retrieval + cross-encoder reranking, similar in spirit to my semantic + BM25 + tag rerank pipeline.) ([SentenceTransformers][1])
+
+23. Nogueira, R., Cho, K. *Passage Re-ranking with BERT*. arXiv:1901.04085 (2019).
+    (Classic cross-encoder reranker, conceptually linked to my blended scoring/reranking stages.) ([ResearchGate][5])
+
+24. Thakur, N. et al. *BEIR: A Heterogeneous Benchmark for Information Retrieval*. NeurIPS (2021).
+
+25. Robertson, S. *Understanding BM25 and Beyond*. Foundations and Trends in Information Retrieval (2009).
+    [https://plg-group.github.io/ir-book/Inverted-Indexes-BM25.html](https://plg-group.github.io/ir-book/Inverted-Indexes-BM25.html) ([Collaborate][6])
+
+26. Elastic - *Semantic Reranking* Documentation.
+    (Concrete example of hybrid BM25 + transformer-based reranking similar to my v2 design.) ([Elastic][7])
+
+27. Milvus / SentenceTransformers - *How to Use Sentence Transformers for Semantic Search*.
+    (Step-by-step description of embedding generation, indexing, and similarity matching for vector search.) ([Milvus][8])
+
+28. dcarpintero. *Multilingual Semantic Search with Reranking* (GitHub).
+    (End-to-end example combining dense retrieval with reranking on a large vectorized corpus.) ([GitHub][9])
+
+---
+
+# **Data Cleaning, Heavy-Tailed Distributions, and Tag Noise**
+
+29. Sculley, D. *Web-Scale High-Dimensional Text Clustering* (2007).
+30. Mikolov, T. et al. *Linguistic Regularities in Continuous Space Word Representations*.
+
+---
+
+# **General Machine Learning & Clustering Theory (writing support)**
+
+31. Bishop, C. *Pattern Recognition and Machine Learning*. Springer (2006).
+32. Hastie, Tibshirani, Friedman. *The Elements of Statistical Learning*. Springer (2009).
+33. Manning, C., & Schütze, H. *Foundations of Statistical Natural Language Processing*. MIT Press (1999).
+
+---
+
+### **v1.1-v1.4 (LSA + KMeans family)**
+
+References: 4, 5, 6, 12, 25, 31, 32
+
+### **v2.1-v2.3 (BERT-Hybrid + OPTICS / HDBSCAN)**
+
+References: 7, 8, 9, 10, 11, 15, 16
+
+### **v2.4 (BERT-Hybrid + Nyström Spectral + KMeans)**
+
+References: 12, 13, 14, 15, 16, 19, 20, 21
+
+### **POS filtering + NLP normalization**
+
+References: 1, 2, 3
+
+### **TF-IDF, tags SVD, sparse matrices**
+
+References: 4, 5, 6
+
+### **UMAP & EDA visualization**
+
+References: 7, 8, 9
+
+### **Similarity search, hybrid retrieval, and reranking (v1 & v2)**
+
+References: 15, 16, 19-28
 
 
-
-
-
->
-> 
