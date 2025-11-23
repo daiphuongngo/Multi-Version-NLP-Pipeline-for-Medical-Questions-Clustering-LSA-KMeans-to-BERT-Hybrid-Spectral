@@ -54,7 +54,7 @@ In the v2.4.2 run I report, the chosen solution has **k = 14** clusters over all
 
 * Many clusters have **very high mean silhouette** (0.7–0.9) and strong tag purity.
 * Two large “basin” clusters absorb the generic symptom drift.
-* Average intra-cluster cosine similarity ≈ 0.67, mean inter-centroid cosine ≈ 0.00, and average tag purity ≈ 0.62.
+* Average intra-cluster cosine similarity ≈ 0.67, mean inter-centroid cosine ≈ 0.00 and average tag purity ≈ 0.62.
 
 Clusters line up with intuitive themes such as:
 
