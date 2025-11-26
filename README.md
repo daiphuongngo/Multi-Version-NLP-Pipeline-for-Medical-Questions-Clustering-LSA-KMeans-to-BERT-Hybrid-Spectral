@@ -152,7 +152,7 @@ I treat clustering and retrieval as two sides of the same organizing problem.
   Start with classical TF-IDF + LSA + KMeans. The emphasis is on getting a stable, explainable taxonomy in a linear space and seeing how far simple KMeans can go in separating major medical themes.
 
 * **Transition to v1.4.2:**
-  Introduce POS-based cleaning and spectral clustering on the LSA representation. Clusters become less spherical, more manifold-aware, and easier to interpret via dendrograms.
+  Introduce POS-based cleaning and spectral clustering on the LSA representation. Clusters become less spherical, more manifold-aware and easier to interpret via dendrograms.
 
 * **v2.x line (2.1.2–2.4.2):**
   Switch to embedding-based pipelines that combine:
