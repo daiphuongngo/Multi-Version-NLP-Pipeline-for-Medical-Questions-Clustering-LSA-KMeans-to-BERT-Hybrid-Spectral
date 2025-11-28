@@ -73,7 +73,7 @@ From my perspective, the story is:
 * **v1.1.2–v1.2.2:** good top-level taxonomy, weaker semantics, mega-clusters.
 * **v1.4.2:** same LSA space but better cleaned and sliced with spectral clustering.
 * **v2.1.2–v2.2.2:** excellent micro-topics via OPTICS, but low coverage and slower runs.
-* **v2.3.2–v2.4.2:** best trade-off—semantically meaningful, tag-aligned clusters that are scalable, fully covering, and easy to explain.
+* **v2.3.2–v2.4.2:** best trade-off—semantically meaningful, tag-aligned clusters that are scalable, fully covering and easy to explain.
 
 ---
 
