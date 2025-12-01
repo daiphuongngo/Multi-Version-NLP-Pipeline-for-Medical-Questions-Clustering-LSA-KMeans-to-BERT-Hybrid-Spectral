@@ -18,7 +18,7 @@ My work compares seven clustering pipelines (v1.1.2, 1.2.2, 1.4.2, 2.1.2, 2.2.2,
 
 I start with TF-IDF/LSA + KMeans baselines (v1.1.2–1.2.2), move to POS-filtered representations and spectral clustering in LSA space (v1.4.2), and then switch to BERT embeddings plus tag features for the v2.x family. On the clustering side, I experiment with KMeans, full spectral clustering, density-based OPTICS in a BERT+tags cosine space (v2.1.2–2.2.2), and finally a scalable Nyström spectral embedding followed by MiniBatchKMeans with a k-scan (v2.3.2–2.4.2).
 
-Across versions, the early LSA + KMeans runs (v1.1.2–1.2.2) produce clean, board-friendly top-level categories but suffer from one or two mega-clusters. OPTICS (v2.1.2–2.2.2) uncovers extremely tight topic “islands” but labels most of the corpus as noise. The Nyström + KMeans pipelines (v2.3.2–2.4.2) strike the best balance between semantic coherence, tag alignment, runtime and full coverage. I close with an integrated picture of how these clusters can support labeling, routing, and future retrieval or RAG-style answering.
+Across versions, the early LSA + KMeans runs (v1.1.2–1.2.2) produce clean, board-friendly top-level categories but suffer from one or two mega-clusters. OPTICS (v2.1.2–2.2.2) uncovers extremely tight topic “islands” but labels most of the corpus as noise. The Nyström + KMeans pipelines (v2.3.2–2.4.2) strike the best balance between semantic coherence, tag alignment, runtime and full coverage. I close with an integrated picture of how these clusters can support labeling, routing, and future retrieval, or RAG-style answering.
 
 ---
 
