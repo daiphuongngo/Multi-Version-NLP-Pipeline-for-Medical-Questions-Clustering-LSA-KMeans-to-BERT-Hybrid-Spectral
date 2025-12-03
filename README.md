@@ -12,516 +12,473 @@
 
 ## Name: **Dai Phuong Ngo (Liam)**
 
+Here is a full revision of those sections, rewritten around the seven clustering pipelines
+v1.1.3, v1.2.3, v1.4.3, v1.2.1.3, v2.2.3, v2.3.3, v2.4.3 and the two similarity pipelines.
+I use I and my sometimes, avoid you/your/we/us/our, and avoid bold and special characters.
+
+---
+
 ## Abstract
 
-My work compares seven clustering pipelines (v1.1.2, 1.2.2, 1.4.2, 2.1.2, 2.2.2, 2.3.2, 2.4.2) on an ≈47.5k-row corpus of short medical chatbot questions with associated tags. The goals are: (1) to build an explainable, business-ready taxonomy for routing and analytics, and (2) to understand how far unsupervised structure can go before supervised intent models become necessary.
+My work compares seven clustering pipelines (v1.1.3, v1.2.3, v1.4.3, v1.2.1.3, v2.2.3, v2.3.3, v2.4.3) and two retrieval and reranking pipelines (Similarity v1 and v2) on an approximately 47.5k-row corpus of short medical chatbot questions with associated tags. The goals are:
 
-I start with TF-IDF/LSA + KMeans baselines (v1.1.2–1.2.2), move to POS-filtered representations and spectral clustering in LSA space (v1.4.2), and then switch to BERT embeddings plus tag features for the v2.x family. On the clustering side, I experiment with KMeans, full spectral clustering, density-based OPTICS in a BERT+tags cosine space (v2.1.2–2.2.2), and finally a scalable Nyström spectral embedding followed by MiniBatchKMeans with a k-scan (v2.3.2–2.4.2).
+1. to build an explainable, business-ready taxonomy for routing and analytics,
+2. to understand how far unsupervised structure can go before supervised intent models become necessary, and
+3. to design a similarity search and reranking layer that can reuse these representations for FAQ reuse and future RAG-style answering.
 
-Across versions, the early LSA + KMeans runs (v1.1.2–1.2.2) produce clean, board-friendly top-level categories but suffer from one or two mega-clusters. OPTICS (v2.1.2–2.2.2) uncovers extremely tight topic “islands” but labels most of the corpus as noise. The Nyström + KMeans pipelines (v2.3.2–2.4.2) strike the best balance between semantic coherence, tag alignment, runtime and full coverage. I close with an integrated picture of how these clusters can support labeling, routing, and future retrieval or RAG-style answering.
+All clustering versions now work in semantic embedding spaces that combine BERT sentence embeddings with tag features. The v1.x family starts with BERT(all-MiniLM-L6-v2) plus SVD-reduced tag vectors and KMeans (v1.1.3, v1.2.3), then explores graph-based spectral clustering (v1.4.3) and a transitional PCA-reduced KMeans variant (v1.2.1.3). The v2.x family refines the BERT+tags embedding and shifts to density-based clustering with OPTICS for micro-topics (v2.2.3), followed by a Nyström spectral approximation and MiniBatchKMeans with a k-scan (v2.3.3, v2.4.3) for a scalable, fully covering taxonomy.
+
+On top of the BERT+tags representation, I implement two retrieval pipelines. Similarity Search and Reranking v1 uses dense semantic similarity plus tag Jaccard overlap to rank neighbors. Similarity Search and Reranking v2 extends this with a hybrid architecture that combines semantic cosine, BM25 lexical scores, and tag overlap in a blended scoring function. Across versions, early KMeans runs (v1.1.3, v1.2.3) produce clean, board-friendly top-level categories but suffer from one or two very broad clusters. The density-based variant v2.2.3 uncovers extremely tight topic islands but labels a large portion of the corpus as noise. The Nyström plus MiniBatchKMeans pipelines (v2.3.3, v2.4.3), combined with the hybrid similarity search in v2, strike the best balance between semantic coherence, tag alignment, runtime, coverage, and retrieval quality. I close with an integrated picture of how these clusters and the similarity search stack can support labeling, routing, retrieval, and future RAG-style answering.
 
 ---
 
 ## Executive Summary
 
-I ran seven main clustering variants on the same underlying dataset and tags.
+I run seven main clustering variants on the same underlying dataset and tag universe, and then layer two retrieval and reranking pipelines on top of the shared BERT+tags feature space used in the v2 line.
 
-### v1.1.2–v1.2.2 (TF-IDF + LSA + KMeans)
+1. v1.1.3 and v1.2.3: BERT + tags with KMeans
+   These baselines use POS-filtered text embedded with BERT(all-MiniLM-L6-v2) and SVD-reduced tags. v1.1.3 uses a straightforward KMeans in the fused space. v1.2.3 adds a more systematic k-scan and better metric logging. Both runs already produce a recognizable medical taxonomy (pregnancy and cycles, vaccines, sexual health, musculoskeletal pain, medication questions, mental health, insurance, etc.), but they also create one or two mega-clusters mixing diffuse symptom questions. Internal metrics such as silhouette and intra-cluster cosine are reasonable, but cluster size statistics show heavy imbalance. At this stage, retrieval is still implicit nearest-neighbor search in the same space, not yet a designed reranking pipeline.
 
-Early baselines using bag-of-words and tags in a linear LSA space. After basic normalization and TF-IDF, I apply TruncatedSVD to obtain ~200-dimensional LSA vectors and run KMeans with a fixed k. These runs already produce a recognizable medical taxonomy (pregnancy, skin, mental health, general infection, etc.), but they also tend to create one or two **mega-clusters** that mix generic pain/symptom questions and “what is this” prompts. Internal metrics are reasonable, but silhouette and cluster size stats clearly show heavy imbalance.
+2. v1.4.3: BERT + tags with spectral clustering
+   In v1.4.3, I keep the BERT+tags representation but impose stricter POS-based noun and proper-noun filtering and move from pure KMeans to a graph-driven spectral clustering approach. A similarity graph in the fused space is approximated, eigenvectors are computed, and KMeans is applied in the spectral coordinates. This makes clusters less spherical and more aligned with the manifold structure. With a k-scan and dendrogram on cluster centroids, v1.4.3 gives a more nuanced top-level view, although it still works in the same underlying embedding and still lacks a dedicated retrieval stack.
 
-### v1.4.2 (TF-IDF + LSA + Spectral Clustering)
+3. v1.2.1.3: PCA-reduced BERT + tags with KMeans
+   v1.2.1.3 is an intermediate step that reduces the BERT+tags representation via PCA before clustering. The goal is to stabilize KMeans, reduce noise, and improve numerical behavior. Compared to v1.2.3, clusters are somewhat more balanced, and silhouettes improve modestly. This version helps prepare the ground for the more explicitly manifold-aware v2.x line.
 
-In v1.4.2 I introduce stricter preprocessing (POS-based noun/proper-noun filtering) and move from vanilla KMeans to **spectral clustering** in LSA space. The POS filter removes a lot of filler words and keeps medically meaningful nouns (conditions, body parts, drugs). Spectral clustering makes clusters less spherical and more aligned with the manifold structure. With k-scan and a dendrogram on cluster centroids, v1.4.2 gives a good top-level view, but it still relies on TF-IDF/LSA features rather than a fully semantic embedding.
+4. v2.2.3: BERT + tags with OPTICS
+   In v2.2.3, I adopt a fused BERT+tags representation (typically 80-dimensional PCA BERT plus 20-dimensional tag SVD) and apply OPTICS with cosine distance. OPTICS discovers dense, clinically coherent micro-topics such as shingles, hepatitis, thyroid conditions, diabetes, and some medication regimes. However, realistic hyperparameters make OPTICS label only a small fraction of points as core cluster members and treat the remainder as noise. This variant is an upper bound on how sharp clusters can be if coverage is ignored.
 
-### v2.1.2–v2.2.2 (BERT + Tags + OPTICS)
+5. v2.3.3 and v2.4.3: BERT + tags with Nyström spectral + MiniBatchKMeans
+   v2.3.3 and v2.4.3 keep the mature BERT+tags feature design and replace density-based clustering with a scalable Nyström spectral embedding followed by MiniBatchKMeans and a k-scan. Nyström uses a subset of landmarks and a cosine kernel to approximate a spectral embedding in a compact manifold space (for example, 40 dimensions). MiniBatchKMeans then runs over a range of k values, with metrics recorded for each k. v2.3.3 is the first stable Nyström pipeline; v2.4.3 refines the k-scan, metrics, and interpretation steps. The chosen v2.4.3 solution balances global silhouette, tag purity, and cluster size distribution better than earlier versions.
 
-In the v2.x line I switch to a joint **BERT + tags** representation. Questions are POS-filtered, embedded with a Sentence-Transformer model, compressed via PCA, and concatenated with SVD-reduced tag features. OPTICS with cosine distance is then applied in this 100D space.
+6. Similarity Search and Reranking v1: dense semantic plus tags
+   Similarity v1 sits on top of the v2-style BERT+tags representation. It uses dense semantic similarity from BERT embeddings (after PCA and L2 normalization) for candidate generation, then reranks candidates with a blended score combining semantic cosine and tag Jaccard overlap. Text-only queries rely mainly on semantics; tag-driven queries emphasize tag overlap. This design produces a clean, mathematically simple retrieval engine aligned with the clustering geometry.
 
-* OPTICS discovers very **dense, clinically coherent micro-topics** (e.g., shingles, hepatitis, thyroid, certain medication side-effects).
-* However, for realistic hyperparameters, it labels only a **small fraction** of points as cluster members and treats the remainder as noise.
+7. Similarity Search and Reranking v2: hybrid semantic, BM25, and tags
+   Similarity v2 extends v1 by introducing a BM25 lexical index over normalized questions. At query time, candidates come from the union of dense semantic neighbors and BM25 neighbors. A blended score then combines semantic cosine, tag Jaccard, and normalized BM25. Query-time POS filtering can be turned off for speed when needed. In practice, Similarity v2 preserves semantic coherence while recovering more exact-phrase and rare-term matches, which matters for short medical queries and potential RAG-style workflows.
 
-The result is an interesting “upper bound” on how sharp clusters can be if coverage is ignored. These versions are excellent for discovering canonical islands but poor as full taxonomies.
-
-### v2.3.2–v2.4.2 (BERT + Tags → Nyström Spectral + KMeans)
-
-v2.3.2 and v2.4.2 keep the mature BERT+tags feature design but replace OPTICS with a scalable **Nyström spectral** embedding followed by **MiniBatchKMeans** and a k-scan:
-
-* Nyström uses 2,000 landmarks and a cosine kernel to approximate the spectral embedding in 40 dimensions.
-* KMeans runs in this compact spectral space for k between 4 and 15, with metrics recorded for each k (silhouette, CH, DB, max cluster diameter).
-
-In the v2.4.2 run I report, the chosen solution has **k = 14** clusters over all 47,491 questions. Global silhouette is modest (≈0.15) for such a noisy domain, but:
-
-* Many clusters have **very high mean silhouette** (0.7–0.9) and strong tag purity.
-* Two large “basin” clusters absorb the generic symptom drift.
-* Average intra-cluster cosine similarity ≈ 0.67, mean inter-centroid cosine ≈ 0.00 and average tag purity ≈ 0.62.
-
-Clusters line up with intuitive themes such as:
-
-* Musculoskeletal and arthritis complaints
-* Sexual health, STIs, and surgery/blood-test questions
-* Pregnancy and period timing
-* Newborn/baby care
-* General fever/infection and flu/vaccination
-* Medication and treatment questions
-* Anxiety/depression and panic disorders
-* Insurance/Medicare/ACA and coverage issues
-* Skin, acne, rash and dermatology topics
-
-From my perspective, the story is:
-
-* **v1.1.2–v1.2.2:** good top-level taxonomy, weaker semantics, mega-clusters.
-* **v1.4.2:** same LSA space but better cleaned and sliced with spectral clustering.
-* **v2.1.2–v2.2.2:** excellent micro-topics via OPTICS, but low coverage and slower runs.
-* **v2.3.2–v2.4.2:** best trade-off—semantically meaningful, tag-aligned clusters that are scalable, fully covering and easy to explain.
+From my perspective, v1.1.3, v1.2.3, and v1.4.3 provide increasingly refined KMeans and spectral baselines in a BERT+tags space; v1.2.1.3 stabilizes KMeans via PCA; v2.2.3 explores the limit of density-based micro-topics; and v2.4.3, combined with Similarity v2, offers the most balanced and deployment-ready combination.
 
 ---
 
 ## Project Overview
 
-I treat this as a clustering-first project with a strong operational flavor. The dataset is a large set of short, informal medical questions plus a multi-label tag field. The end goal is a taxonomy that:
+This project is clustering-first with an explicit retrieval layer sitting on top. The dataset consists of short, informal medical questions paired with a multi-label tag field. The ultimate aim is a taxonomy and retrieval stack that:
 
-* makes sense to clinicians and product owners,
-* can be reused for routing, reporting, and later supervised models,
-* and behaves predictably as new data arrives and distributions drift.
+1. makes sense to clinicians and product owners,
+2. can be reused for routing, reporting, intent definition, and semantic search, and
+3. behaves predictably as new data arrives and distributions drift.
 
-To get there, I iterate through seven versions. Each version changes:
+To reach that point, I iterate through seven clustering versions and two retrieval versions. Each iteration adjusts:
 
-* the **NLP pipeline** (tokenization, POS filtering, TF-IDF vs BERT, tag handling),
-* the **clustering backend** (KMeans, spectral, OPTICS, Nyström + MiniBatchKMeans),
-* or both.
+1. the NLP pipeline (normalization, POS filtering, BERT embedding, tag handling),
+2. the clustering backend (KMeans, spectral clustering, OPTICS, Nyström plus MiniBatchKMeans), and
+3. in the v2 retrieval line, the similarity search architecture (dense semantic plus tags in v1, hybrid dense plus BM25 plus tags in v2).
 
-The guiding question for each iteration is: *“Would this clustering actually help a real system organize and navigate these questions?”*
+The guiding questions are not only “Does this clustering organize questions into clinically sensible groups?” but also “Given this representation, how should neighboring questions be ranked for retrieval and RAG?”
 
 ---
 
 ## Problem Statement
 
-Given tens of thousands of short, noisy medical questions with a large and messy tag universe, the problem is to produce clusters that:
+Given tens of thousands of short, noisy medical questions and a large, messy tag universe, the problem is to construct:
 
-* align with real medical themes, not just word-frequency artifacts,
-* stay explainable enough for domain experts to review and name,
-* handle the long tail of rare conditions and paraphrases without exploding k,
-* and can be recomputed and audited as new questions arrive.
+1. Clusters that
+   a) align with real medical themes rather than simple word-frequency artifacts,
+   b) remain explainable enough for domain experts to review and label,
+   c) handle the long tail of rare conditions and paraphrases without exploding the number of clusters, and
+   d) can be recomputed and audited over time as new questions arrive.
 
-There is a tension between:
+2. A similarity search and reranking stack that
+   a) reuses the same semantic and tag representations used for clustering,
+   b) supports both semantic paraphrase matching and exact lexical matches,
+   c) uses tags as a weak supervision signal to enforce intent consistency, and
+   d) can be integrated into RAG or FAQ reuse workflows.
 
-* **simple, top-level clusters** (great for dashboards and KPIs), and
-* **fine-grained micro-topics** (great for intent libraries and future retrieval/RAG).
+There is an inherent tension between simple top-level clusters for dashboards and KPIs, fine-grained micro-topics for intent libraries, and a flexible retrieval layer that can work within or across these clusters.
 
 In this project:
 
-* The **v1.x** line leans toward top-level clusters in a TF-IDF/LSA space.
-* **v2.1.2–v2.2.2** show what density-based clustering can do for micro-topics.
-* **v2.3.2–v2.4.2** aim for a middle ground: a scalable spectral manifold + KMeans that covers all data and still respects micro-structure.
+* The v1 line (v1.1.3, v1.2.3, v1.4.3, v1.2.1.3) leans toward top-level and mid-level clusters in a BERT+tags space using KMeans and spectral clustering.
+* v2.2.3 pushes density-based clustering for micro-topics using OPTICS.
+* v2.3.3 and v2.4.3 aim for a middle ground via Nyström spectral plus MiniBatchKMeans.
+* Similarity v1 and v2 explore how to expose this structure to a chatbot or RAG system via semantic and hybrid retrieval.
 
 ---
 
 ## Data Exploration
 
-After preprocessing, I end up with:
+After preprocessing and POS-based cleanup, the dataset contains about 47,491 rows. A TF-IDF vocabulary (when used) reaches on the order of tens of thousands of terms, and the multi-hot tag matrix covers roughly several thousand distinct tags.
 
-* **47,491 rows** after POS-based cleanup (from 47,603; only ≈112 zero-information rows dropped),
-* a TF-IDF vocabulary of up to ~40k terms (depending on `min_df`),
-* and a sparse multi-hot tag matrix with ≈4k unique tags.
+The distributions are highly long-tailed:
 
-The distributions are very **heavy-tailed**:
-
-* Tags like “pregnancy”, “period”, “pain” appear thousands of times.
+* Common tags such as pregnancy, period, pain, anxiety, depression, flu, and insurance appear frequently.
 * Many tags appear only a handful of times.
 
-Cosine similarity histograms in both LSA and BERT+tags spaces show:
+Cosine similarity histograms in both LSA-inspired spaces (for the early experiments) and in the BERT+tags spaces show two distinct structures:
 
-* dense **“islands”** corresponding to specific conditions or topics (e.g., shingles, hepatitis C, hypothyroidism, some medication regimes),
-* and a broad low-similarity background corresponding to vague symptom, “could this be X”, and general worry questions.
+1. Dense islands representing specific conditions or topics, such as shingles, hepatitis C, hypothyroidism, diabetes, certain drug regimens, or narrow anatomic complaints.
+2. A broad low-similarity background of vague symptom questions, general worry, and “could this be X” prompts.
 
-This pattern explains later behavior:
+This explains the behavior of later clustering methods:
 
-* In v1.x KMeans, one or two **huge generic clusters** emerge alongside several more specialized ones.
-* In v2.1.2–v2.2.2 OPTICS, the dense islands become clusters and the background becomes **noise**.
+* In KMeans-based versions such as v1.1.3 and v1.2.3, one or two large generic clusters emerge alongside a set of more targeted clusters.
+* In the density-based v2.2.3, the dense islands become clusters and the background turns into noise.
+* In Nyström-based versions such as v2.3.3 and v2.4.3, these structures are preserved but partitioned more evenly.
 
-Outliers that turn into zero vectors or get filtered away tend to be extremely short prompts (“help pls”, “hi”) or lines fully stripped by POS filtering.
+Outliers that become zero vectors or get fully filtered by POS and tag cleaning tend to be extremely short prompts like “hi” or “help please,” which are naturally problematic for both clustering and retrieval. These are treated as edge cases and either dropped or relegated to catch-all groups.
 
 ---
 
 ## Modelling
 
-I treat clustering and retrieval as two sides of the same organizing problem.
+Clustering and retrieval are treated as two sides of the same organizing problem: clusters give global structure, and similarity search lets a system zoom into local neighborhoods.
 
-* **v1.x line (1.1.2, 1.2.2, 1.4.2):**
-  Start with classical TF-IDF + LSA + KMeans. The emphasis is on getting a stable, explainable taxonomy in a linear space and seeing how far simple KMeans can go in separating major medical themes.
+v1 line (v1.1.3, v1.2.3, v1.4.3, v1.2.1.3)
+In the v1 line, text is normalized, POS-filtered, and embedded with BERT. Tags are parsed, normalized, and projected with SVD. These are combined into a fused semantic plus tag feature space. KMeans (v1.1.3, v1.2.3, v1.2.1.3) and spectral clustering (v1.4.3) are then used to produce clusters at different granularities. Retrieval is still informal: nearest neighbors in the same space can be computed, but there is no separate retrieval design.
 
-* **Transition to v1.4.2:**
-  Introduce POS-based cleaning and spectral clustering on the LSA representation. Clusters become less spherical, more manifold-aware and easier to interpret via dendrograms.
+Transition through v1.4.3 and v1.2.1.3
+v1.4.3 uses spectral clustering to capture non-spherical manifold structures. v1.2.1.3 uses PCA to stabilize KMeans and reduce noise before clustering. These experiments show how sensitive structure can be to the geometry imposed on the same BERT+tags representation.
 
-* **v2.x line (2.1.2–2.4.2):**
-  Switch to embedding-based pipelines that combine:
+v2 line (v2.2.3, v2.3.3, v2.4.3) and retrieval
+In the v2 line, the fused representation is formalized:
 
-  * BERT sentence embeddings on POS-filtered text,
-  * SVD-reduced tag vectors,
-  * and consistent cosine geometry via scaling + L2 normalization.
+* POS-filtered questions receive BERT all-MiniLM-L6-v2 embeddings.
+* BERT vectors are reduced via PCA to a semantic subspace.
+* Tag vectors are compressed via SVD to a low-dimensional tag space.
+* These are concatenated and normalized.
 
-  Within this family:
+Within this representation:
 
-  * v2.1.2–2.2.2 use **OPTICS** to explore dense islands vs noise.
-  * v2.3.2–2.4.2 use **Nyström spectral** + MiniBatchKMeans with k-scan.
+* v2.2.3 uses OPTICS to reveal high-purity topic islands at the cost of labeling many points as noise.
+* v2.3.3 and v2.4.3 use Nyström spectral approximation plus MiniBatchKMeans with a k-scan to produce fully covering, scalable clusterings.
 
-Throughout, I rely on internal metrics and tag coherence measures to decide which versions are better for:
+Parallel to that, Similarity v1 and v2 are added:
 
-* **high-level routing** (balanced, fully covering clusters),
-* vs **long-tail discovery** (islands with high purity but limited coverage).
+* Similarity v1 uses dense semantic similarity and tag Jaccard to rerank neighbors.
+* Similarity v2 adds BM25 lexical signals and a union-based candidate generation strategy.
+
+I rely on internal metrics, tag coherence, and qualitative retrieval audits to judge which combinations work best for routing, long-tail discovery, and per-query retrieval quality.
 
 ---
 
 ## Algorithm and Evaluation Strategy
 
-Algorithmically, each version follows the same macro pattern:
+Each clustering version follows a similar macro pattern:
 
-1. Build a feature space combining **content** (question text) and **weak supervision** (tags).
-2. Reduce dimensionality where necessary.
+1. Build a feature space that combines content (question text) and weak supervision (tags).
+2. Reduce dimensionality if necessary.
 3. Run a clustering algorithm suited to that geometry.
-4. Evaluate cluster structure numerically and qualitatively.
+4. Evaluate the resulting structure both numerically and qualitatively.
 
-### v1.x (LSA + KMeans / Spectral)
+Similarity v1 and v2 follow a parallel pattern:
 
-* Work in a 200D LSA space.
-* v1.1.2–1.2.2 use KMeans with fixed k, experimenting with different k and initialization.
-* v1.4.2 switches to spectral clustering on the same LSA features, adding k-scan and dendrograms for hierarchy.
+1. Reuse shared semantic and tag representations from clustering.
+2. Add lexical features (BM25 in v2).
+3. Define candidate generation (semantic, lexical, or both).
+4. Design a blended scoring function for reranking.
+5. Evaluate results qualitatively and prepare for future IR metrics.
 
-### v2.x (BERT + Tags)
+v1 family
 
-* Build a 100D fused feature space:
+* v1.1.3 and v1.2.3: BERT+tags fused space, KMeans with different k scanning and hyperparameters.
+* v1.4.3: spectral clustering on a similarity graph derived from the same fused space, followed by KMeans in eigenvector coordinates.
+* v1.2.1.3: PCA on the fused space followed by KMeans.
 
-  * BERT(all-MiniLM-L6-v2) → PCA (≈80D),
-  * tags → SVD (≈20D),
-  * concatenate and L2-normalize.
-* v2.1.2–2.2.2: OPTICS with cosine distance on normalized features, tuning `min_samples` and `min_cluster_size` to control noise vs cluster count.
-* v2.3.2–2.4.2: Nyström spectral approximation:
+v2 family
 
-  * sample landmarks,
-  * compute K_mm and its eigenvectors,
-  * approximate spectral coordinates for all points (40D),
-  * run MiniBatchKMeans + k-scan in spectral space.
+* v2.2.3: OPTICS with cosine distance in a normalized 100-dimensional fused space, tuned for dense island discovery.
+* v2.3.3 and v2.4.3: Nyström spectral approximation to a compact manifold space, then MiniBatchKMeans with a k-scan and metric tracking.
 
-### Evaluation
+Similarity v1
 
-For each version, I compute:
+* BERT embeddings (PCA-reduced) form the semantic tower.
+* Tag sets form a discrete tower.
+* Candidates come from dense semantic nearest neighbors.
+* Reranking uses a blended score combining semantic cosine and tag Jaccard.
 
-* **Global internal metrics:** silhouette, Calinski-Harabasz (CH), Davies-Bouldin (DB) in the space where clustering is done (LSA, fused 100D space, or 40D spectral space).
-* **Cluster size stats:** min/max/mean/median/std of cluster sizes and noise points (for OPTICS).
-* **Cosine-based structure metrics:**
-  average intra-cluster cosine similarity, mean inter-centroid cosine similarity.
-* **Tag-based coherence:**
-  per-cluster dominant tag purity, tag entropy, mean intra-cluster Jaccard over tag sets.
-* **Human-readable cluster summaries:**
-  top TF-IDF terms, top tags, and example questions.
+Similarity v2
 
-Within each family, I interpret metrics relatively:
-
-* v1.x: good internal scores but visible mega-clusters in size stats.
-* v2.1.2–2.2.2: excellent metrics on the labeled points, but most data marked as noise.
-* v2.3.2–2.4.2: moderate global silhouette on a messy domain, high per-cluster silhouette for many clusters, strong tag purity, and full coverage.
+* Same semantic and tag components as v1.
+* Additional BM25 index over normalized question text.
+* Candidates come from the union of semantic and BM25 top lists.
+* Reranking uses a three-term blended score combining semantic cosine, tag Jaccard, and normalized BM25.
 
 ---
 
 ## Data Preprocessing
 
-All versions share a common preprocessing backbone, with later variants adding a more sophisticated NLP layer.
+All versions share a common preprocessing backbone, with later variants adding more sophisticated NLP components that are reused by both clustering and retrieval.
 
-### Normalization
+Normalization
 
 * Lowercase text.
-* Normalize curly quotes and dashes (’→', “→", –→-).
-* Remove non-alphanumeric symbols except `'` and `?` when helpful.
-* Store this as `short_question_norm`.
+* Normalize curly quotes and dashes.
+* Remove most non-alphanumeric symbols, except where apostrophes or question marks matter.
+* Store as short_question_norm for any lexical features such as TF-IDF or BM25.
 
-### Tag Parsing
+Tag parsing
 
-* Extract quoted tags from the raw `tags` column using a regex.
-* Normalize whitespace, lowercase, and store as `tag_list`.
-* Convert `tag_list` to a multi-label binary matrix with `MultiLabelBinarizer(sparse_output=True)`.
+* Parse raw tag strings into normalized lists.
+* Lowercase and strip whitespace.
+* Convert to a multi-label binary matrix using a multi-label binarizer.
+* Keep a tag_sets view per row for Jaccard computations.
 
-### POS-based filtering (mainly v1.4.2 and all v2.x)
+POS-based filtering
 
-* Run spaCy `en_core_web_sm` with NER/textcat disabled for speed.
-* Keep tokens where:
+* Use a spaCy pipeline with NER and textcat disabled for speed.
+* Keep nouns and proper nouns, plus short domain-specific abbreviations such as hpv, uti, rbc, wbc, and similar.
+* Remove general and domain-specific stopwords, numeric tokens, and very short tokens outside the whitelist.
+* Store the result as short_question_pos.
+* Drop rows where both short_question_pos is empty and the tag list is empty.
 
-  * POS ∈ {NOUN, PROPN}, or
-  * lemma is in a whitelist of short medical tokens (`hpv`, `uti`, `flu`, `rbc`, `wbc`, etc.).
-* Remove:
+Dimensionality reduction
 
-  * general + domain-specific stopwords (“today”, “year”, “time”, etc.),
-  * numeric-like tokens,
-  * very short tokens not in the whitelist.
-* Store the result as `short_question_pos`.
-* Drop rows where both `short_question_pos` is empty and `tag_list` is empty.
+* v1 line:
 
-### Dimensionality Reduction
+  * Earlier experiments used TF-IDF and LSA; current v1.x versions rely mainly on BERT embeddings plus tag SVD, with PCA added in v1.2.1.3.
+* v2 line:
 
-* **v1.x:**
+  * BERT embeddings on short_question_pos.
+  * PCA to an 80-dimensional semantic subspace, preserving a substantial proportion of variance.
+  * Tag SVD to a roughly 20-dimensional tag subspace.
+  * Concatenate to form a 100-dimensional vector for clustering.
 
-  * TF-IDF (with n-grams) on normalized or POS-filtered text.
-  * Optional tag features concatenated to TF-IDF.
-  * TruncatedSVD to ≈200D (LSA space).
+Scaling and normalization
 
-* **v2.x:**
-
-  * BERT embeddings on `short_question_pos`.
-  * PCA to ≈80D (explained variance ≈0.72).
-  * Tag SVD to ≈20D (explained variance ≈0.24).
-  * Concatenate to 100D.
-
-### Scaling and Normalization
-
-* StandardScaler (with_mean=True) where appropriate.
-* Row-wise L2 normalization before OPTICS or spectral embedding so that cosine distance is meaningful.
+* Apply a standard scaler where needed.
+* Apply L2 normalization before algorithms such as OPTICS and Nyström so that cosine distance is meaningful.
+* For similarity search, ensure that semantic vectors are L2 normalized so that dot products equal cosine similarity.
 
 ---
 
 ## Model Architectures
 
-The clustering “architectures” evolve in two phases.
-
-### Phase 1 – LSA-based (v1.1.2, 1.2.2, 1.4.2)
+Phase 1 – v1 family
 
 * Text representation:
 
-  * TF-IDF over normalized/POS-filtered text (unigrams + limited bigrams).
-  * Optional tag one-hots or SVD-reduced tags.
-  * TruncatedSVD → ~200D LSA space.
+  * Normalized and POS-filtered text embedded with BERT all-MiniLM-L6-v2.
+  * Tag vectors reduced via SVD and concatenated with BERT embeddings.
+  * In v1.2.1.3, this fused representation is further reduced via PCA.
 
 * Clustering:
 
-  * v1.1.2–1.2.2: KMeans / MiniBatchKMeans with fixed k (e.g., 15 or 7), used as top-level taxonomies.
-  * v1.4.2: Spectral clustering on the LSA representation; KMeans in eigenvector space, with k-scan and dendrograms.
+  * v1.1.3 and v1.2.3: KMeans or MiniBatchKMeans in the fused space.
+  * v1.4.3: spectral clustering over a similarity graph of the fused space, using KMeans in the eigenvector space.
+  * v1.2.1.3: PCA followed by KMeans to improve stability.
 
-These models are straightforward, relatively fast, and easy to explain, but they are limited to linear structures and still prone to one or two mega-clusters.
-
-### Phase 2 – BERT + Tags (v2.1.2–2.4.2)
+Phase 2 – v2 family and retrieval
 
 * Text representation:
 
-  * Embed POS-filtered questions using `all-MiniLM-L6-v2`.
-  * PCA → 80D with explained variance ≈0.72.
+  * POS-filtered questions embedded with BERT all-MiniLM-L6-v2.
+  * PCA to an 80-dimensional semantic space.
+
 * Tag representation:
 
-  * MultiLabelBinarizer + SVD → 20D with explained variance ≈0.24.
-* Concatenate into a 100D dense vector per question.
-* L2-normalize to keep cosine geometry consistent.
+  * Multi-label tag matrix reduced by SVD to about 20 dimensions.
 
-Clustering heads:
+* Clustering:
 
-* **OPTICS (v2.1.2–v2.2.2)**
+  * Fused 100-dimensional vectors created by concatenation of semantic and tag representations.
+  * v2.2.3: OPTICS with cosine distance on L2-normalized fused vectors.
+  * v2.3.3 and v2.4.3: Nyström spectral approximation to a compact space, then MiniBatchKMeans with k-scan.
 
-  * Run OPTICS with cosine distance on the 100D space.
-  * Tune `min_samples` and `min_cluster_size` to trade off noise vs number of clusters.
-  * Naturally identifies dense islands but yields huge noise sets when thresholds are conservative.
+* Retrieval:
 
-* **Nyström spectral + MiniBatchKMeans (v2.3.2–v2.4.2)**
+  * Semantic tower: L2-normalized 80-dimensional BERT PCA vectors.
+  * Tag tower: tag_sets per question.
+  * Similarity v1: semantic cosine plus tag Jaccard, candidates from semantic neighbors.
+  * Similarity v2: same plus BM25 over short_question_norm, with candidates from both semantic and BM25 neighbors.
 
-  * Sample 2,000 landmarks.
-  * Build landmark kernel K_mm with a cosine kernel + small ridge.
-  * Compute eigenvectors/eigenvalues of K_mm.
-  * Form a sparse S matrix of top-T similarities from each point to landmarks.
-  * Compute spectral embedding Z ∈ ℝ^(N×40).
-  * Run MiniBatchKMeans with k-scan (k = 4..15) on Z.
-  * Choose k based on a tuple of metrics (sampled silhouette, CH, DB, max diameter).
+This separation allows clustering and retrieval to remain loosely coupled but conceptually aligned.
 
 ---
 
-## Training Configuration / Reproducibility
+## Training Configuration and Reproducibility
 
-Even though all the runs are unsupervised, I treat configuration and runtime behavior as “training” that needs to be controlled and documented.
+Even though the clustering runs are unsupervised, I treat configuration and runtime behavior as if they were training processes that require careful control and documentation.
 
-Key choices:
+Key choices include:
 
-* Fixed random seeds (usually 42) for NumPy, KMeans, PCA/SVD, Nyström landmark sampling, and UMAP.
-* For TF-IDF, bounded vocabulary size and `min_df` to avoid noise from ultra-rare grams.
-* BERT embeddings computed in batches (e.g., 1,024 sentences per batch) and on GPU when available.
-* PCA and SVD components chosen to keep a comfortable proportion of variance while keeping dimensions manageable for clustering.
-* KMeans / MiniBatchKMeans with multiple `n_init` and reasonable batch sizes (4096) to stabilize centers without overspending runtime.
-* OPTICS hyperparameters in v2.1.2–2.2.2 explicitly tuned for “dense island discovery” rather than full coverage.
-* Detailed timing logs for each stage (CSV load, NLP preprocessing, vectorization, spectral embedding, clustering, metrics, UMAP, dendrogram).
+* Fixed random seeds for NumPy and clustering algorithms, for example 42.
+* Reasonable bounds on any TF-IDF-like vocabulary and minimum document frequency when those features are used.
+* Batched BERT embedding on GPU when available.
+* PCA and SVD component counts chosen to balance explained variance and dimensionality.
+* KMeans and MiniBatchKMeans configured with multiple initializations and sensible batch sizes.
+* OPTICS parameters tuned in v2.2.3 for discovery of dense islands without over-fragmentation.
+* Nyström landmark sampling sizes chosen to balance approximation quality and speed.
+* Detailed timing logs for CSV loading, NLP preprocessing, vectorization, spectral embedding, clustering, metric computation, UMAP, and dendrogram generation.
 
-For BERT-based pipelines (v2.1.2–2.4.2), the core configuration is:
-
-* BERT: `sentence-transformers/all-MiniLM-L6-v2`,
-* BERT PCA: 80 components (EV ≈ 0.721),
-* Tag SVD: 20 components (EV ≈ 0.245),
-* Nyström (v2.3.2–v2.4.2): `N_LANDMARKS=2000`, `TOP_T=64`, `SPECTRAL_EIGENVEC=40`,
-* KMeans layer on Z: `k ∈ [4,15]`, `n_init=10`, batch_size=4096.
+For similarity stacks, I also log preprocessing time, embedding and PCA time, SVD time, BM25 index-building time, and save offline timing summaries so that Similarity v1 and v2 can be compared.
 
 ---
 
 ## Evaluation Strategy
 
-Because the versions use different representation spaces (LSA vs fused BERT+tags vs spectral embedding), evaluation is layered rather than reduced to a single score.
+Because different versions operate in different geometries, evaluation is layered rather than reduced to a single scalar score.
 
-Within each version, I compute:
+For clustering versions:
 
-* **Internal metrics** in the clustering space:
+* Internal metrics:
 
-  * silhouette (often with cosine and sometimes sampled for scalability),
-  * Calinski-Harabasz,
-  * Davies-Bouldin.
+  * Silhouette (often with cosine, sometimes subsampled).
+  * Calinski–Harabasz index.
+  * Davies–Bouldin index.
 
-* **Size and coverage metrics:**
+* Size and coverage:
 
-  * cluster size distribution (min/max/mean/median/std),
-  * for OPTICS: counts of clustered points vs noise.
+  * Cluster size distribution and imbalance.
+  * For OPTICS in v2.2.3: the ratio of clustered points to noise.
 
-* **Cosine structure metrics:**
+* Cosine structure:
 
-  * average intra-cluster cosine similarity (cohesion),
-  * mean inter-centroid cosine similarity (separation).
+  * Average intra-cluster cosine similarity.
+  * Mean inter-centroid cosine similarity.
 
-* **Tag coherence metrics:**
+* Tag coherence:
 
-  * dominant tag purity per cluster,
-  * entropy over tag counts,
-  * mean intra-cluster Jaccard similarity between tag sets.
+  * Dominant tag purity per cluster.
+  * Tag entropy per cluster.
+  * Mean intra-cluster Jaccard similarity between tag sets.
 
-* **Human inspection:**
+* Human inspection:
 
-  * top TF-IDF terms per cluster,
-  * top tags per cluster,
-  * 3–5 example questions per cluster (especially for outliers and low-silhouette clusters).
+  * Top terms per cluster from a TF-IDF fit on the cluster.
+  * Top tags per cluster.
+  * Representative example questions.
 
-Interpretation is relative:
+For similarity versions:
 
-* v1.x: internal metrics are decent but cluster size stats reveal mega-clusters.
-* v2.1.2–2.2.2: cluster-internal metrics are very strong, but coverage is poor because most points are noise.
-* v2.4.2: global silhouette is modest (≈0.15) but:
+* Qualitative neighbor inspection:
 
-  * many clusters have silhouette ≈0.7–0.9,
-  * tag purity averages ≈0.62,
-  * intra-cluster cosine is high (≈0.67),
-  * inter-centroid cosine is low (≈0.00),
-  * and coverage is 100%.
+  * Evaluate neighbors for text-only, tag-driven, and mixed queries.
+  * Compare neighbor lists from Similarity v1 and v2 on the same queries.
 
-For this application, that trade-off is much more valuable than a high silhouette on a tiny labeled subset.
+* Score behavior:
+
+  * Inspect ranges and distributions of semantic cosine, tag Jaccard, BM25 scores, and blended scores.
+  * Check that BM25 in Similarity v2 can promote exact or rare lexical matches without destroying semantic structure.
+
+A natural next step for future work is to collect a small set of query–relevance pairs and compute Precision at k, Recall at k, and nDCG at k to evaluate retrieval versions more formally.
 
 ---
 
 ## Processing Pipeline
 
-All experiments share the same backbone:
+All experiments share the same backbone; clustering versions and similarity stacks plug into different stages.
 
-1. **Load & clean**
+1. Load and clean
 
-   * Read CSV from Google Drive.
-   * Normalize `short_question`, parse tags, fill missing values.
-   * Apply POS-based cleaning to create `short_question_pos`.
-   * Drop rows with no useful text and no tags.
+   * Read CSV from storage.
+   * Normalize short_question, parse and clean tags.
+   * Apply POS filtering to create short_question_pos.
+   * Drop rows with no informative text and no tags.
 
-2. **Feature construction**
+2. Feature construction
 
-   * v1.x:
+   * v1 line:
 
-     * TF-IDF on normalized or POS-filtered text.
-     * Optional tag features.
-     * TruncatedSVD → 200D LSA.
+     * BERT embeddings on short_question or short_question_pos.
+     * Tag vectors reduced via SVD.
+     * Fusion by concatenation, with PCA added in v1.2.1.3.
 
-   * v2.x:
+   * v2 line:
 
-     * BERT embeddings on `short_question_pos`.
-     * PCA → 80D.
-     * Tag SVD → 20D.
-     * Concatenate to 100D, scale, L2-normalize.
+     * BERT embeddings on short_question_pos.
+     * PCA to 80-dimensional semantic space.
+     * Tag SVD to about 20 dimensions.
+     * Concatenate to 100-dimensional fused vectors.
+     * Build BM25 index on short_question_norm for Similarity v2.
 
-3. **Clustering**
+3. Clustering
 
-   * v1.1.2–1.2.2: KMeans with fixed k in LSA space.
-   * v1.4.2: spectral clustering + KMeans on eigenvector space, with k-scan.
-   * v2.1.2–2.2.2: OPTICS with cosine distance on 100D fused space.
-   * v2.3.2–2.4.2: Nyström spectral embedding (40D) + MiniBatchKMeans k-scan.
+   * v1.1.3 and v1.2.3: KMeans in fused space with different k strategies.
+   * v1.4.3: spectral clustering plus KMeans in eigenvector space.
+   * v1.2.1.3: PCA plus KMeans.
+   * v2.2.3: OPTICS with cosine distance.
+   * v2.3.3 and v2.4.3: Nyström spectral embedding plus MiniBatchKMeans, with k-scan and metric logging.
 
-4. **Diagnostics**
+4. Similarity search
 
-   * Compute internal metrics, size stats, tag coherence.
-   * Generate UMAP 2D scatter and dendrogram (for spectral variants).
-   * Produce k-vs-metric plots for the Nyström+KMeans runs.
+   * Similarity v1:
 
-5. **Outputs**
+     * Candidates from dense semantic neighbors.
+     * Reranking with semantic cosine plus tag Jaccard.
 
-   * Save a clustered assignments CSV with:
+   * Similarity v2:
 
-     * original question,
-     * POS-filtered text,
-     * tags,
-     * cluster ID,
-     * cluster hints from top terms and top tags.
-   * Save per-cluster summaries and global model-selection metrics as CSV.
-   * Save a timings JSON to understand runtime per stage.
+     * Candidates from semantic nearest neighbors and BM25 neighbors.
+     * Reranking with a blended semantic plus tags plus BM25 score.
+
+5. Diagnostics and outputs
+
+   * Internal metrics, UMAP plots, dendrograms, and k-versus-metric plots for clustering.
+   * Neighbor tables with decomposed scores for retrieval.
+   * Cluster assignment CSVs, cluster summaries, model-selection tables, and timings JSON.
 
 ---
 
 ## Conclusion
 
-Looking across the seven versions:
+Looking across v1.1.3, v1.2.3, v1.4.3, v1.2.1.3, v2.2.3, v2.3.3, v2.4.3 and the two similarity pipelines:
 
-* **v1.1.2–v1.2.2** provide a reliable, explainable top-level taxonomy in an LSA space. They are ideal for initial stakeholder discussions, but mega-clusters limit their use for routing and detailed analytics.
-* **v1.4.2** shows that POS filtering and spectral clustering in LSA space can sharpen themes and reveal a hierarchy of topics, but it is still tied to TF-IDF representations.
-* **v2.1.2–v2.2.2** push density-based clustering as far as possible: these OPTICS runs provide an upper bound on how sharp and clinically coherent islands can be, at the cost of treating most questions as noise.
-* **v2.3.2–v2.4.2** deliver a scalable spectral manifold + KMeans approach. Among them, **v2.4.2** is the most “production-ready”: same strong BERT+tags representation, fully covering clusters, consistent cosine-based geometry, and rich diagnostics.
+* v1.1.3 and v1.2.3 deliver reliable top-level and mid-level taxonomies in a BERT+tags space, using KMeans. They are strong for initial stakeholder conversations, but mega-clusters limit their use for fine-grained routing.
+* v1.4.3 shows that spectral clustering on the same embedding sharpens themes and reveals hierarchical relations, but still relies on the same representation and does not yet add a formal retrieval layer.
+* v1.2.1.3 demonstrates that PCA smoothing can stabilize KMeans and slightly improve metrics and cluster balance.
+* v2.2.3 uses OPTICS to push density-based clustering as far as possible, yielding highly coherent islands at the cost of calling many points noise.
+* v2.3.3 and especially v2.4.3 use Nyström spectral plus MiniBatchKMeans to build a scalable manifold-based clustering with full coverage, balanced cluster sizes, and a good trade-off between silhouette, tag purity, and interpretability.
+* Similarity v1 translates the fused representation into a clean dense and tags retrieval engine that works well but can miss some exact lexical effects.
+* Similarity v2 adds BM25 and a hybrid candidate strategy so that semantic paraphrase matching, rare-word anchoring, and tag alignment all contribute.
 
-If I have to choose one version for deployment today, I pick **v2.4.2**: the Nyström + MiniBatchKMeans pipeline balances semantic coherence, tag alignment, runtime, and explainability in a way that fits real operational needs.
+If a single clustering version and a single retrieval version must be chosen for deployment, v2.4.3 for clustering and Similarity Search and Reranking v2 for retrieval form a natural pair. Together, they provide a global taxonomy and a flexible similarity layer that balance coherence, tag alignment, runtime, coverage, and explainability in a way that feels suitable for real medical chatbot or RAG-style applications.
 
 ---
 
 ## Lessons Learned
 
-A few lessons are clear after working through these versions:
+Several lessons become clear once similarity search and reranking are added on top of clustering.
 
-1. **Representation beats clever clustering.**
-   Moving from raw TF-IDF to POS-filtered text helps, but the big jump happens when BERT embeddings and tag features are combined. After that, most clustering differences are about how to slice an already good space.
+1. Representation quality dominates algorithm choice.
+   The biggest jump in interpretability and retrieval behavior comes from moving to a carefully designed BERT+tags embedding. After that, different clustering and retrieval algorithms mostly determine how that space is sliced and scored.
 
-2. **KMeans is surprisingly strong.**
-   In both LSA and spectral spaces, KMeans gives stable, interpretable top-level categories. The main issues are mega-clusters and granularity, not algorithm failure.
+2. KMeans remains a strong baseline.
+   In both the original fused space and the Nyström spectral space, KMeans and MiniBatchKMeans produce stable and interpretable categories. With Nyström, the approach scales well and yields reusable cluster identifiers.
 
-3. **Density-based methods are powerful but unforgiving.**
-   OPTICS (v2.1.2–2.2.2) produces some of the most coherent medical topics in the corpus, but at the price of labeling the majority of points as noise. That’s great for analysis and canonical examples, but not for a system that needs a label for every question.
+3. Density-based clustering is powerful but harsh.
+   OPTICS in v2.2.3 produces the tightest and most clinically coherent topics but at the price of discarding a large fraction of the corpus as noise. Those islands are good seeds for prototypes, but they are not enough for a full taxonomy.
 
-4. **Nyström + KMeans is a practical middle ground.**
-   The v2.4.2 spectral Nyström approximation keeps a graph-based notion of similarity while remaining scalable. Combined with MiniBatchKMeans and k-scan, it yields 14 clusters that cover the full dataset, are reasonably compact (intra-cluster cosine ≈ 0.67), and align well with tags (purity ≈ 0.62).
+4. Hybrid retrieval works better than dense-only.
+   Similarity v1, which uses semantic similarity and tags, is elegant but can miss edge cases, especially rare phrases or shorthand. Adding BM25 in Similarity v2 helps recover those without losing the benefits of dense embeddings and tags.
 
-5. **High silhouette alone can be misleading.**
-   Density-based runs have fantastic silhouette scores on their labeled subsets, but that hides the fact that most points are labeled as noise. For this task, moderate silhouette with full coverage and strong tag coherence (as in v2.4.2) is more useful than excellent silhouette on a tiny fraction of the data.
+5. Single metrics can be misleading.
+   High silhouette values on a subset of points in a density-based run do not reflect noise coverage. High semantic cosine alone does not guarantee intent alignment. For this application, a moderate global silhouette with full coverage and strong tag coherence, as in v2.4.3, combined with a hybrid retrieval score as in Similarity v2, is more useful than perfect metrics on restricted subsets.
 
 ---
 
 ## Limitations and Future Work
 
-Remaining limitations:
+Several limitations remain for both clustering and retrieval.
 
-* **Metric comparability across spaces.**
-  Silhouette and CH in LSA space are not directly comparable to the same metrics in the 40D spectral space. A more rigorous comparison would recompute cohesion and separation for all versions in a shared embedding (e.g., the 100D BERT+tags space).
+* Metric comparability across spaces is imperfect. Silhouette in an LSA-inspired setting is not directly comparable to silhouette in a 40-dimensional spectral manifold. The same holds for cosine similarities and BM25 scores. A more rigorous comparison would evaluate cohesion and separation within a common reference space and with a labeled reference set.
 
-* **Scale of human evaluation.**
-  Manual audits of clusters are still limited. A more systematic evaluation with multiple raters and inter-annotator agreement would give stronger evidence of topic coherence and naming quality.
+* Human evaluation is limited in scale. Manual audits of clusters and retrieval results are still relatively small. A more systematic effort with multiple raters and agreement analysis would strengthen the evidence for coherence, naming, and retrieval utility.
 
-* **No integrated retrieval layer yet.**
-  The current work stops at clustering. A natural next step is to add a retrieval stack on top of v2.4.2: dense similarity search within each cluster plus reranking to support answer reuse or RAG.
+* There is no formal IR evaluation yet. The similarity pipelines currently rely on qualitative inspection. A clear next step is to construct a query–relevance set and compute quantitative IR metrics such as Precision at k, Recall at k, and nDCG at k for both Similarity v1 and v2.
 
-* **Domain drift and retraining.**
-  Medical queries will drift over time. A production system would need:
+* Domain drift is not yet fully addressed. Medical queries change over time. A production system would benefit from scheduled retraining of embeddings, clusters, and BM25 statistics, as well as drift monitoring over embedding distributions, term statistics, and cluster size trends.
 
-  * scheduled retraining of embeddings and clusters,
-  * drift monitors over embedding distributions and cluster size trends,
-  * alerts when new themes appear or some clusters grow abnormally.
+* From clusters and similarity to intents and RAG remains an open path. Clusters and neighbor sets are unsupervised proto-intents. To make them operational, one natural plan is:
 
-* **From clusters to intents.**
-  Clusters are unsupervised proto-intents. To make them operational:
+  1. Fix v2.4.3 cluster assignments as a starting taxonomy.
+  2. Use Similarity v2 neighborhoods to propose canonical exemplars.
+  3. Work with clinicians or product owners to name and refine these groups.
+  4. Train supervised intent models to predict these labels for new questions, with retrieval used as a RAG backbone and cluster IDs used for routing and reporting.
 
-  * freeze v2.4.2 clusters as a starting taxonomy,
-  * collect names/guidelines from clinicians or product owners,
-  * and train supervised intent models that predict these labels for new questions.
+Overall, comparing v1.1.3 through v2.4.3 and Similarity v1 and v2 gives a clear view of the design space. v1.x illustrates strong, explainable BERT+tags taxonomies with KMeans and spectral clustering. v2.2.3 shows the extremes of density-based micro-topic discovery. v2.4.3 and Similarity v2 together form a pragmatic, production-leaning combination for taxonomy, retrieval, and future RAG integration.
 
-Overall, the comparison across v1.1.2–v2.4.2 gives a clear map of the design space:
-
-* **v1.x** = reliable, explainable TF-IDF/LSA taxonomies.
-* **v2.1.2–v2.2.2** = upper bound of density-based micro-topics.
-* **v2.4.2** = the version that balances all constraints and is ready to sit behind a real medical chatbot pipeline.
+-----------
 
 # EDA
 
