@@ -110,7 +110,7 @@ This geometry explains much of the behavior I observe across clustering methods:
 
 * In KMeans-based methods (v1.1.3, v1.2.3), large generic clusters emerge capturing much of the background, along with several more topical clusters.
 * In spectral + manifold-based clustering (v2.3.3, v2.4.3), those dense islands tend to form coherent clusters, while the background is partitioned more evenly, limiting mega-cluster formation.
-* Reranking and retrieval benefit from this structure: semantic + tag-based retrieval tends to surface relevant neighbors within islands; hybrid retrieval (with BM25) helps surface more lexical or rare-term neighbors even if they inhabit the noisy background region.
+* Reranking and retrieval benefit from this structure: semantic + tag-based retrieval tends to surface relevant neighbors within islands; hybrid retrieval (with BM25) helps surface more lexical, or rare-term neighbors even if they inhabit the noisy background region.
 
 Some rows drop out early in preprocessing: extremely short prompts (“help”, “hi”) or badly formatted questions that POS-filtering reduces to empty. These inevitably become problematic for both clustering and retrieval. I treat them as edge cases; they are either dropped or relegated to catch-all clusters, and manual review would likely be needed in production.
 
