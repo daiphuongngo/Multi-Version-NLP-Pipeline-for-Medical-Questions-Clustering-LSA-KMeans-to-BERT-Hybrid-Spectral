@@ -1,4 +1,4 @@
-# From Clusters to Retrieval: Hybrid BERT-Based Taxonomy and Similarity Search for Medical Chatbot Questions
+a# From Clusters to Retrieval: Hybrid BERT-Based Taxonomy and Similarity Search for Medical Chatbot Questions
 
 ![Harvard_University_logo svg](https://github.com/user-attachments/assets/cf1e57fb-fe56-4e09-9a8b-eb8a87343825)
 
@@ -13,7 +13,7 @@
 ## Name: **Dai Phuong Ngo (Liam)**
 
 Here is a full revision of those sections, rewritten around the seven clustering pipelines
-v1.1.3, v1.2.3, v1.4.3, v1.2.1.3, v2.2.3, v2.3.3, v2.4.3 and the two similarity pipelines.
+v1.1.3, v1.2.3, v1.4.3, v1.2.1.3, v2.2.3, v2.3.3, v2.4.3, and the two similarity pipelines.
 I use I and my sometimes, avoid you/your/we/us/our, and avoid bold and special characters.
 
 ---
