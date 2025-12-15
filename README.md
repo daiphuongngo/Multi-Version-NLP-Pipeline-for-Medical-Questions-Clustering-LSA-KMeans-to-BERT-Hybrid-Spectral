@@ -12,15 +12,8 @@
 
 ## Name: **Dai Phuong Ngo (Liam)**
 
-Here is a full revision of those sections, rewritten around the seven clustering pipelines
-v1.1.3, v1.2.3, v1.4.3, v1.2.1.3, v2.2.3, v2.3.3, v2.4.3, and the two similarity pipelines.
-I use I and my sometimes, avoid you/your/we/us/our, and avoid bold and special characters.
+## Youtube:
 
----
-
-Sure. Below is a revised version of the document sections, updated to reflect the current set of versions: v1.1.3, v1.2.3, v1.4.3, v2.1.3, v2.3.3, v2.4.3 (excluding v2.2.3). I sometimes use I/my and avoid “you/your/we/us/our,” special formatting, or emojis.
-
----
 
 ## Abstract
 
@@ -1438,6 +1431,16 @@ Wrote assignments to: /content/drive/My Drive/Colab Notebooks/Harvard/CSCI E-89B
           total_runtime_s: 752.6672
 
 ```
+
+<img width="790" height="490" alt="CSCi E-108 v1 2 3 plot 1" src="https://github.com/user-attachments/assets/6037bc15-68a5-477a-a26b-2d82668bee5f" />
+
+<img width="790" height="490" alt="CSCi E-108 v1 2 3 plot 2" src="https://github.com/user-attachments/assets/2a9780d8-5024-4874-950a-aae898ef032b" />
+
+<img width="989" height="790" alt="CSCi E-108 v1 2 3 plot 3" src="https://github.com/user-attachments/assets/7f8111a5-ffa1-4117-815a-71fc28325cd2" />
+
+<img width="1189" height="590" alt="CSCi E-108 v1 2 3 plot 4" src="https://github.com/user-attachments/assets/fc2f211c-34a0-4369-9463-d5395a4d3b19" />
+
+
 In v1.2.3, I'm generally conducting a semi-supervised topic discovery pipeline over about 47,491 short medical questions with same techniques of data preprocessing and Natural Language Processing as I did in v1.1.3.
 
 **Feature representation and modelling**
@@ -3388,6 +3391,13 @@ Saved model-selection metrics to: /content/drive/My Drive/Colab Notebooks/Harvar
            hierarchical_s:   0.2671
           total_runtime_s: 281.7612
 ```
+<img width="790" height="490" alt="CSCi E-108 v2 4 3 plot 1" src="https://github.com/user-attachments/assets/ba2e66e8-f15e-4c65-a12e-2e399297044e" />
+
+<img width="790" height="490" alt="CSCi E-108 v2 4 3 plot 2" src="https://github.com/user-attachments/assets/8a5b24fb-f2ae-4470-8658-4e7453cdbda0" />
+
+<img width="988" height="790" alt="CSCi E-108 v2 4 3 plot 7" src="https://github.com/user-attachments/assets/bb6dbc9b-60a2-4cfa-ac6d-a98116a3ec93" />
+
+<img width="1189" height="590" alt="CSCi E-108 v2 4 3 plot 8" src="https://github.com/user-attachments/assets/61c2a465-741b-45e4-bb53-0605ba067233" />
 
 In v2.4.3 I am still working with the same corpus: 47,491 short medical questions after POS cleanup, with `short_question` and `tags` as the core fields and same data preprocessing and NLP as in v1.1.3.
 
