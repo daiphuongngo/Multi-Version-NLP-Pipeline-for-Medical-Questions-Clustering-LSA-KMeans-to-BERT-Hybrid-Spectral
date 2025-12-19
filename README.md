@@ -38,7 +38,7 @@ In v1.4.3 I keep the BERT + tags representation but switch clustering from KMean
 
 ### v2.1.3 (BERT + tags + PCA + KMeans)
 
-v2.1.3 represents a refinement in embedding: I apply PCA on BERT vectors to compress semantic variance, then fuse with tag SVD vectors to create a lower-noise 100-dimensional feature space. KMeans is applied over this normalized space. Compared to v1.2.3, clustering becomes more stable, silhouettes improve modestly, cluster boundaries sharpen, and numerical behavior (diameter, inter-centroid separation) becomes more predictable. This sets the stage for more advanced manifold-aware clustering.
+v2.1.3 represents a refinement in embedding: I apply PCA on BERT vectors to compress semantic variance, then fuse with tag SVD vectors to create a lower-noise 100-dimensional feature space. KMeans is applied over this normalized space. Compared to v1.2.3, clustering becomes more stable, silhouettes improve modestly, cluster boundaries sharpen and numerical behavior (diameter, inter-centroid separation) becomes more predictable. This sets the stage for more advanced manifold-aware clustering.
 
 ### v2.3.3 and v2.4.3 (BERT + tags → Nyström Spectral Embedding + MiniBatchKMeans)
 
