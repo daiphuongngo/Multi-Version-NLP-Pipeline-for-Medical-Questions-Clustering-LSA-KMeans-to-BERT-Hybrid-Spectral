@@ -42,7 +42,7 @@ v2.1.3 represents a refinement in embedding: I apply PCA on BERT vectors to comp
 
 ### v2.3.3 and v2.4.3 (BERT + tags → Nyström Spectral Embedding + MiniBatchKMeans)
 
-In v2.3.3 and v2.4.3 I combine the mature BERT + tags embedding with a scalable spectral embedding via the Nyström method. I sample landmarks, build a cosine kernel approximate manifold, embed all points into a compact manifold space (e.g. 40 dimensions), then run MiniBatchKMeans over a k-scan. This approach produces full coverage (every question assigned to a cluster), improved geometry-aware partitioning, and more balanced cluster sizes. The v2.4.3 configuration yields many tight, semantically and tag-coherent clusters, while limiting over-large generic clusters. Cluster interpretability, silhouette, intra-cluster similarity, and tag purity reach levels that make this version production-ready.
+In v2.3.3 and v2.4.3 I combine the mature BERT + tags embedding with a scalable spectral embedding via the Nyström method. I sample landmarks, build a cosine kernel approximate manifold, embed all points into a compact manifold space (e.g. 40 dimensions), then run MiniBatchKMeans over a k-scan. This approach produces full coverage (every question assigned to a cluster), improved geometry-aware partitioning, and more balanced cluster sizes. The v2.4.3 configuration yields many tight, semantically and tag-coherent clusters, while limiting over-large generic clusters. Cluster interpretability, silhouette, intra-cluster similarity and tag purity reach levels that make this version production-ready.
 
 ### Similarity Search & Reranking v1 (Dense Semantic + Tags)
 
