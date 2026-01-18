@@ -3719,7 +3719,7 @@ Finally, I would expose a configuration switch for spaCy at query-time. If `USE_
 
 ## 5. Refactored code direction
 
-In practice, the refactored full script I am aiming for takes my existing pipeline and adds a **BM25 reranker** on top. I still build the BERT-based semantic tower, the POS-filtered representations, and the tag structures exactly as before. On top of that, I add a BM25 index over `short_question_norm`, implement hybrid candidate selection via the union of semantic and BM25 top-k lists, and then compute a blended score that combines semantic cosine, tag Jaccard, and BM25. The idea is that I should be able to paste this into a fresh Colab, run it end to end, and see that the retrieval behaviour becomes more robust: semantically similar neighbours show up, tag-aligned neighbours get boosted, and rare, lexically crucial terms are no longer lost.
+In practice, the refactored full script I am aiming for takes my existing pipeline and adds a **BM25 reranker** on top. I still build the BERT-based semantic tower, the POS-filtered representations, and the tag structures exactly as before. On top of that, I add a BM25 index over `short_question_norm`, implement hybrid candidate selection via the union of semantic and BM25 top-k lists, and then compute a blended score that combines semantic cosine, tag Jaccard, and BM25. The idea is that I should be able to paste this into a fresh Colab, run it end to end and see that the retrieval behaviour becomes more robust: semantically similar neighbours show up, tag-aligned neighbours get boosted, and rare, lexically crucial terms are no longer lost.
 
 ## v2
 
